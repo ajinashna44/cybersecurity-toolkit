@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SIEM Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>Ethical SIEM Dashboard</h1>
+        <p>Sample log intelligence for local security lab use</p>
+      </header>
+
+      <section class="cards" id="summaryCards">
+        <div class="card">
+          <span class="label">Total Requests</span>
+          <strong id="totalRequests">--</strong>
+        </div>
+        <div class="card">
+          <span class="label">Unique IPs</span>
+          <strong id="uniqueIps">--</strong>
+        </div>
+        <div class="card">
+          <span class="label">Top Status</span>
+          <strong id="topStatus">--</strong>
+        </div>
+        <div class="card warning">
+          <span class="label">Suspicious Events</span>
+          <strong id="suspiciousCount">--</strong>
+        </div>
+      </section>
+
+      <section class="panel-grid">
+        <div class="panel">
+          <h2>Status Codes</h2>
+          <ul id="statusCodes" class="list"></ul>
+        </div>
+
+        <div class="panel">
+          <h2>Top IPs</h2>
+          <ul id="topIps" class="list"></ul>
+        </div>
+
+        <div class="panel">
+          <h2>Top Paths</h2>
+          <ul id="topPaths" class="list"></ul>
+        </div>
+
+        <div class="panel">
+          <h2>Suspicious Activity</h2>
+          <ul id="suspiciousList" class="list warning-list"></ul>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      async function loadSummary() {
+        const response = await fetch('/api/summary');
+        const data = await response.json();
+
+        document.getElementById('totalRequests').textContent = data.total_requests ?? 0;
+        document.getElementById('uniqueIps').textContent = data.unique_ips ?? 0;
+
+        const statusEntries = Object.entries(data.status_counts || {});
+        const topStatus = statusEntries.length ? statusEntries.reduce((a, b) => a[1] > b[1] ? a : b) : ['N/A', 0];
+        document.getElementById('topStatus').textContent = `${topStatus[0]} (${topStatus[1]})`;
+        document.getElementById('suspiciousCount').textContent = (data.suspicious || []).length;
+
+        const statusList = document.getElementById('statusCodes');
+        statusList.innerHTML = statusEntries.length
+          ? statusEntries.map(([code, count]) => `<li><span>${code}</span><strong>${count}</strong></li>`).join('')
+          : '<li>No data</li>';
+
+        const topIpsList = document.getElementById('topIps');
+        topIpsList.innerHTML = (data.top_ips || []).length
+          ? data.top_ips.map(item => `<li><span>${item.ip}</span><strong>${item.count}</strong></li>`).join('')
+          : '<li>No data</li>';
+
+        const topPathsList = document.getElementById('topPaths');
+        topPathsList.innerHTML = (data.top_paths || []).length
+          ? data.top_paths.map(item => `<li><span>${item.path}</span><strong>${item.count}</strong></li>`).join('')
+          : '<li>No data</li>';
+
+        const suspiciousList = document.getElementById('suspiciousList');
+        suspiciousList.innerHTML = (data.suspicious || []).length
+          ? data.suspicious.map(item => {
+              const pathInfo = item.path ? `Path: ${item.path}` : 'Multiple bad requests';
+              const info = item.message ? ` ${item.message}` : '';
+              return `<li><span>${item.ip}</span><strong>${item.bad_event_count} bad hits</strong><div>${pathInfo}${info}</div></li>`;
+            }).join('')
+          : '<li>No suspicious activity flagged</li>';
+      }
+
+      loadSummary();
+      setInterval(loadSummary, 15000);
+    </script>
+  </body>
+</html>
